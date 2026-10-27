@@ -1,59 +1,81 @@
 <!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1e3a5f">
 <title>Dictado</title>
 <style>
-body{font-family:system-ui,sans-serif;max-width:900px;margin:0 auto;padding:16px;background:#f6f7f9;color:#1d2330}
-h1{font-size:1.3rem}
-.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px #0001}
-#now{font-size:1.6rem;line-height:1.5;min-height:110px;padding:12px;border-left:6px solid #2b6cb0;background:#eef4fb;border-radius:8px}
-button{font-size:1rem;padding:10px 16px;margin:4px;border:0;border-radius:8px;background:#2b6cb0;color:#fff;cursor:pointer}
-button.sec{background:#64748b}button.red{background:#c53030}
-label{display:inline-block;margin:6px 14px 6px 0;font-size:.9rem}
-textarea{width:100%;height:200px;font-size:.95rem;box-sizing:border-box}
-select,input[type=number]{font-size:1rem;padding:4px}
-#prog{font-size:.9rem;color:#555}
-.hide{display:none}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;overflow:hidden}
+body{font-family:system-ui,sans-serif;background:#0f172a;color:#f1f5f9;display:flex;flex-direction:column;height:100dvh;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#1e3a5f;font-size:.85rem}
+#info{display:flex;flex-direction:column;line-height:1.3}
+#cfg{height:40px;width:auto;padding:0 12px;font-size:.9rem;border-radius:10px;background:#0ea5e9;font-weight:600}
+#bar{height:4px;background:#334155}#bar i{display:block;height:100%;width:0;background:#38bdf8;transition:width .3s}
+#now{flex:1;overflow-y:auto;padding:20px 18px;font-size:clamp(1.5rem,6.5vw,2.4rem);line-height:1.45;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:500}
+#ctx{padding:0 18px 8px;font-size:.85rem;color:#94a3b8;text-align:center;min-height:2.4em;max-height:3.6em;overflow:hidden}
+#ctrl{display:grid;grid-template-columns:1fr 1fr 1.6fr 1fr 1fr;gap:8px;padding:10px 10px 14px;background:#1e293b}
+button{font-size:1.4rem;border:0;border-radius:14px;background:#334155;color:#fff;height:62px;touch-action:manipulation}
+button:active{filter:brightness(1.3)}
+#play{background:#0ea5e9;font-size:1.7rem}
+#panel{position:fixed;inset:0;background:#0f172a;z-index:5;padding:14px;overflow-y:auto;transform:translateY(100%);transition:transform .25s;padding-top:calc(14px + env(safe-area-inset-top))}
+#panel.open{transform:none}
+#panel h2{margin:0 0 10px;font-size:1.1rem}
+.row{margin:12px 0;display:flex;flex-direction:column;gap:4px;font-size:.95rem}
+.row.inline{flex-direction:row;align-items:center;gap:10px}
+select,input[type=number],textarea{font-size:1rem;padding:10px;border-radius:8px;border:1px solid #475569;background:#1e293b;color:#fff;width:100%}
+input[type=range]{width:100%}input[type=checkbox]{width:22px;height:22px}
+textarea{height:34dvh}
+#close{width:100%;height:52px;font-size:1.05rem;background:#0ea5e9;margin-top:8px}
+.sm{height:46px;font-size:1rem;width:100%;margin-top:6px}
 </style></head><body>
-<h1>Dictado para transcribir a mano</h1>
-<div class="card">
-<div id="prog">Fragmento 0 / 0</div>
-<div id="now">Presioná Iniciar.</div>
-<div>
-<button id="play">▶ Iniciar</button>
-<button id="pause" class="sec">⏸ Pausa</button>
-<button id="rep" class="sec">🔁 Repetir</button>
-<button id="prev" class="sec">⏮ Anterior</button>
-<button id="next" class="sec">⏭ Siguiente</button>
-<button id="stop" class="red">⏹ Detener</button>
+<header>
+<div id="info"><span id="prog">0 / 0</span><span id="rinfo"></span></div>
+<button id="cfg">📝 Cargar / configurar texto</button>
+</header>
+<div id="bar"><i id="fill"></i></div>
+<div id="now">Tocá ▶ para empezar</div>
+<div id="ctx"></div>
+<div id="ctrl">
+<button id="prev" aria-label="Anterior">⏮</button>
+<button id="rep" aria-label="Repetir">🔁</button>
+<button id="play" aria-label="Iniciar o pausar">▶</button>
+<button id="next" aria-label="Siguiente">⏭</button>
+<button id="stop" aria-label="Detener">⏹</button>
 </div>
-<div>
-<label>Voz <select id="voice"></select></label>
-<label>Velocidad <input type="range" id="rate" min="0.5" max="1.3" step="0.05" value="0.8"> <span id="rv">0.8</span></label>
-<label>Pausa entre fragmentos (seg) <input type="number" id="gap" min="0" max="60" value="4" style="width:60px"></label>
-<label>Repetir cada fragmento <select id="times"><option>1</option><option selected>2</option><option>3</option></select> veces</label>
-<label>Fragmentar por <select id="mode"><option value="coma">comas y puntos (corto)</option><option value="punto">solo puntos (oración)</option></select></label>
-<label><input type="checkbox" id="punct"> Dictar signos (coma, punto)</label>
-<label><input type="checkbox" id="auto" checked> Avanzar solo</label>
-<label><input type="checkbox" id="hideTxt"> Ocultar texto (solo audio)</label>
-</div>
-<p style="font-size:.85rem;color:#555">Atajos: Espacio = pausa/continuar, ← anterior, → siguiente, R = repetir.</p>
-</div>
-<div class="card"><b>Texto a dictar</b> (podés pegar otro)
-<textarea id="src"> AQUI CARGAR EL TEXTO QUE QUERES QUE SE TE DICTE, TE RECOMIENDO VELOCIDAD 0.7 Y QUE TE REPITAN 2 VECES </textarea>
-<button id="load" class="sec">Cargar texto</button>
-<button id="goto" class="sec">Ir al fragmento n°:</button> <input type="number" id="gn" value="1" min="1" style="width:70px">
+
+<div id="panel">
+<h2>Cargar / configurar texto dictado</h2>
+<div class="row"><label>Texto a dictar (pegá el tuyo)</label><textarea id="src">Texto de prueba
+
+Esta es una prueba del dictado. Si escuchás esto, la herramienta funciona correctamente.
+
+Asunción es la capital de Paraguay, y está ubicada sobre la margen izquierda del río Paraguay. Fue fundada el 15 de agosto de 1537 por Juan de Salazar y Espinosa.
+
+El guaraní y el español son los dos idiomas oficiales del país, según la Constitución Nacional. Muchas personas hablan ambos en su vida cotidiana, y a esa mezcla se la conoce como jopara.
+
+Para terminar, probemos algunos números y signos: el veinte por ciento, tres mil quinientos guaraníes, y una pregunta final: ¿pudiste escribir todo sin problemas?
+
+Fin de la prueba.</textarea><button class="sm" id="load">Cargar texto y empezar de cero</button></div>
+<div class="row"><label>Voz</label><select id="voice"></select></div>
+<div class="row"><label>Velocidad: <b id="rv">0.8</b></label><input type="range" id="rate" min="0.5" max="1.3" step="0.05" value="0.8"></div>
+<div class="row"><label>Pausa entre fragmentos (seg)</label><input type="number" id="gap" min="0" max="60" value="4"></div>
+<div class="row"><label>Repetir cada fragmento</label><select id="times"><option value="1">1 vez</option><option value="2" selected>2 veces</option><option value="3">3 veces</option></select></div>
+<div class="row"><label>Fragmentar por</label><select id="mode"><option value="coma">comas y puntos (corto)</option><option value="punto">solo puntos (oración)</option></select></div>
+<div class="row inline"><input type="checkbox" id="punct"><label for="punct">Dictar signos (coma, punto)</label></div>
+<div class="row inline"><input type="checkbox" id="auto" checked><label for="auto">Avanzar solo</label></div>
+<div class="row inline"><input type="checkbox" id="hideTxt"><label for="hideTxt">Ocultar texto (solo audio)</label></div>
+<div class="row"><label>Ir al fragmento n°</label><input type="number" id="gn" value="1" min="1"><button class="sm" id="goto">Ir</button></div>
+<button id="close">Listo</button>
 </div>
 <script>
 const $=id=>document.getElementById(id);
-let chunks=[],i=0,state='stop',timer=null,rep=0,voices=[];
+let chunks=[],i=0,state='stop',timer=null,rep=0,voices=[],wl=null;
 function split(){
  const raw=$('src').value.replace(/\r/g,'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
  const out=[];
  raw.forEach(p=>{
   let parts=p.match(/[^.!?:;]+[.!?:;]?/g)||[p];
-  if($('mode').value==='coma'){
-   const q=[];parts.forEach(s=>{(s.match(/[^,]+,?/g)||[s]).forEach(x=>q.push(x))});parts=q;
-  }
+  if($('mode').value==='coma'){const q=[];parts.forEach(s=>{(s.match(/[^,]+,?/g)||[s]).forEach(x=>q.push(x))});parts=q}
   let buf='';
   parts.forEach(s=>{s=s.trim();if(!s)return;buf=buf?buf+' '+s:s;if(buf.split(' ').length>=3){out.push(buf);buf=''}});
   if(buf)out.push(buf);
@@ -70,9 +92,16 @@ function loadVoices(){
 }
 speechSynthesis.onvoiceschanged=loadVoices;loadVoices();
 function show(){
- $('prog').textContent=`Fragmento ${chunks.length?i+1:0} / ${chunks.length}`+(rep?` (lectura ${rep+1}/${$('times').value})`:'');
- $('now').textContent=$('hideTxt').checked?'🔊 ...':(chunks[i]||'Fin del texto.');
+ const n=chunks.length;
+ $('prog').textContent=`Fragmento ${n?Math.min(i+1,n):0} / ${n}`;
+ $('rinfo').textContent=state==='play'?`🔊 lectura ${rep+1}/${$('times').value}`:(state==='paused'?'⏸ en pausa':'');
+ $('fill').style.width=n?(Math.min(i,n)/n*100)+'%':'0';
+ $('now').textContent=$('hideTxt').checked?'🔊':(i>=n&&n?'Fin del texto':(chunks[i]||'Tocá ▶ para empezar'));
+ $('ctx').textContent=$('hideTxt').checked?'':(chunks[i+1]?'Sigue: '+chunks[i+1]:'');
+ $('play').textContent=state==='play'?'⏸':'▶';
 }
+async function keepAwake(){try{if('wakeLock' in navigator)wl=await navigator.wakeLock.request('screen')}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&state!=='stop')keepAwake()});
 function say(){
  clearTimeout(timer);speechSynthesis.cancel();
  if(i>=chunks.length){state='stop';show();return}
@@ -88,27 +117,30 @@ function say(){
   timer=setTimeout(()=>{
    if(rep+1<n){rep++;say()}
    else if($('auto').checked){rep=0;i++;say()}
-   else{rep=0;state='wait'}
+   else{rep=0;state='wait';show()}
   },parseFloat($('gap').value)*1000);
  };
  speechSynthesis.speak(u);
 }
-$('play').onclick=()=>{if(!chunks.length||state==='stop'){split();if(state==='stop'&&i>=chunks.length)i=0}rep=0;say()};
-$('pause').onclick=()=>{
- if(state==='play'){state='paused';clearTimeout(timer);speechSynthesis.cancel();$('pause').textContent='▶ Continuar'}
- else if(state==='paused'||state==='wait'){$('pause').textContent='⏸ Pausa';say()}
+$('play').onclick=()=>{
+ if(state==='play'){state='paused';clearTimeout(timer);speechSynthesis.cancel();show();return}
+ if(state==='paused'||state==='wait'){say();return}
+ split();if(i>=chunks.length)i=0;rep=0;keepAwake();say();
 };
-$('rep').onclick=()=>{rep=0;say()};
-$('next').onclick=()=>{rep=0;i=Math.min(i+1,chunks.length);say()};
-$('prev').onclick=()=>{rep=0;i=Math.max(i-1,0);say()};
-$('stop').onclick=()=>{state='stop';clearTimeout(timer);speechSynthesis.cancel();i=0;rep=0;$('now').textContent='Detenido.';$('prog').textContent='Fragmento 0 / '+chunks.length};
-$('load').onclick=()=>{$('stop').click();split();show()};
-$('goto').onclick=()=>{split();i=Math.max(0,Math.min(chunks.length-1,parseInt($('gn').value)-1));rep=0;say()};
+$('rep').onclick=()=>{if(!chunks.length)split();rep=0;say()};
+$('next').onclick=()=>{if(!chunks.length)split();rep=0;i=Math.min(i+1,chunks.length);say()};
+$('prev').onclick=()=>{if(!chunks.length)split();rep=0;i=Math.max(i-1,0);say()};
+$('stop').onclick=()=>{state='stop';clearTimeout(timer);speechSynthesis.cancel();i=0;rep=0;if(wl){wl.release();wl=null}show()};
+$('load').onclick=()=>{$('stop').click();split();show();$('panel').classList.remove('open')};
+$('goto').onclick=()=>{split();i=Math.max(0,Math.min(chunks.length-1,parseInt($('gn').value)-1));rep=0;$('panel').classList.remove('open');say()};
+$('cfg').onclick=()=>$('panel').classList.add('open');
+$('close').onclick=()=>{$('panel').classList.remove('open');if(state==='stop'||!chunks.length){split();show()}};
 $('rate').oninput=()=>$('rv').textContent=$('rate').value;
 $('hideTxt').onchange=show;
+$('mode').onchange=()=>{split();i=0;show()};
 document.addEventListener('keydown',e=>{
  if(['TEXTAREA','INPUT','SELECT'].includes(e.target.tagName))return;
- if(e.code==='Space'){e.preventDefault();$('pause').click()}
+ if(e.code==='Space'){e.preventDefault();$('play').click()}
  if(e.key==='ArrowRight')$('next').click();
  if(e.key==='ArrowLeft')$('prev').click();
  if(e.key.toLowerCase()==='r')$('rep').click();
