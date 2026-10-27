@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dictado</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:900px;margin:0 auto;padding:16px;background:#f6f7f9;color:#1d2330}
+h1{font-size:1.3rem}
+.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px #0001}
+#now{font-size:1.6rem;line-height:1.5;min-height:110px;padding:12px;border-left:6px solid #2b6cb0;background:#eef4fb;border-radius:8px}
+button{font-size:1rem;padding:10px 16px;margin:4px;border:0;border-radius:8px;background:#2b6cb0;color:#fff;cursor:pointer}
+button.sec{background:#64748b}button.red{background:#c53030}
+label{display:inline-block;margin:6px 14px 6px 0;font-size:.9rem}
+textarea{width:100%;height:200px;font-size:.95rem;box-sizing:border-box}
+select,input[type=number]{font-size:1rem;padding:4px}
+#prog{font-size:.9rem;color:#555}
+.hide{display:none}
+</style></head><body>
+<h1>Dictado para transcribir a mano</h1>
+<div class="card">
+<div id="prog">Fragmento 0 / 0</div>
+<div id="now">Presioná Iniciar.</div>
+<div>
+<button id="play">▶ Iniciar</button>
+<button id="pause" class="sec">⏸ Pausa</button>
+<button id="rep" class="sec">🔁 Repetir</button>
+<button id="prev" class="sec">⏮ Anterior</button>
+<button id="next" class="sec">⏭ Siguiente</button>
+<button id="stop" class="red">⏹ Detener</button>
+</div>
+<div>
+<label>Voz <select id="voice"></select></label>
+<label>Velocidad <input type="range" id="rate" min="0.5" max="1.3" step="0.05" value="0.8"> <span id="rv">0.8</span></label>
+<label>Pausa entre fragmentos (seg) <input type="number" id="gap" min="0" max="60" value="4" style="width:60px"></label>
+<label>Repetir cada fragmento <select id="times"><option>1</option><option selected>2</option><option>3</option></select> veces</label>
+<label>Fragmentar por <select id="mode"><option value="coma">comas y puntos (corto)</option><option value="punto">solo puntos (oración)</option></select></label>
+<label><input type="checkbox" id="punct"> Dictar signos (coma, punto)</label>
+<label><input type="checkbox" id="auto" checked> Avanzar solo</label>
+<label><input type="checkbox" id="hideTxt"> Ocultar texto (solo audio)</label>
+</div>
+<p style="font-size:.85rem;color:#555">Atajos: Espacio = pausa/continuar, ← anterior, → siguiente, R = repetir.</p>
+</div>
+<div class="card"><b>Texto a dictar</b> (podés pegar otro)
+<textarea id="src"> AQUI CARGAR EL TEXTO QUE QUERES QUE SE TE DICTE, TE RECOMIENDO VELOCIDAD 0.7 Y QUE TE REPITAN 2 VECES </textarea>
+<button id="load" class="sec">Cargar texto</button>
+<button id="goto" class="sec">Ir al fragmento n°:</button> <input type="number" id="gn" value="1" min="1" style="width:70px">
+</div>
+<script>
+const $=id=>document.getElementById(id);
+let chunks=[],i=0,state='stop',timer=null,rep=0,voices=[];
+function split(){
+ const raw=$('src').value.replace(/\r/g,'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
+ const out=[];
+ raw.forEach(p=>{
+  let parts=p.match(/[^.!?:;]+[.!?:;]?/g)||[p];
+  if($('mode').value==='coma'){
+   const q=[];parts.forEach(s=>{(s.match(/[^,]+,?/g)||[s]).forEach(x=>q.push(x))});parts=q;
+  }
+  let buf='';
+  parts.forEach(s=>{s=s.trim();if(!s)return;buf=buf?buf+' '+s:s;if(buf.split(' ').length>=3){out.push(buf);buf=''}});
+  if(buf)out.push(buf);
+ });
+ chunks=out;
+}
+function loadVoices(){
+ voices=speechSynthesis.getVoices();
+ const es=voices.filter(v=>/^es/i.test(v.lang));
+ const list=es.length?es:voices;
+ $('voice').innerHTML=list.map(v=>`<option value="${v.name}">${v.name} (${v.lang})</option>`).join('');
+ const pref=list.find(v=>/es-(PY|AR|UY|MX|US)/i.test(v.lang))||list[0];
+ if(pref)$('voice').value=pref.name;
+}
+speechSynthesis.onvoiceschanged=loadVoices;loadVoices();
+function show(){
+ $('prog').textContent=`Fragmento ${chunks.length?i+1:0} / ${chunks.length}`+(rep?` (lectura ${rep+1}/${$('times').value})`:'');
+ $('now').textContent=$('hideTxt').checked?'🔊 ...':(chunks[i]||'Fin del texto.');
+}
+function say(){
+ clearTimeout(timer);speechSynthesis.cancel();
+ if(i>=chunks.length){state='stop';show();return}
+ state='play';show();
+ let t=chunks[i];
+ if($('punct').checked)t=t.replace(/,/g,' coma ').replace(/\./g,' punto ').replace(/:/g,' dos puntos ');
+ const u=new SpeechSynthesisUtterance(t);
+ const v=voices.find(x=>x.name===$('voice').value);if(v){u.voice=v;u.lang=v.lang}else u.lang='es-ES';
+ u.rate=parseFloat($('rate').value);
+ u.onend=()=>{
+  if(state!=='play')return;
+  const n=parseInt($('times').value);
+  timer=setTimeout(()=>{
+   if(rep+1<n){rep++;say()}
+   else if($('auto').checked){rep=0;i++;say()}
+   else{rep=0;state='wait'}
+  },parseFloat($('gap').value)*1000);
+ };
+ speechSynthesis.speak(u);
+}
+$('play').onclick=()=>{if(!chunks.length||state==='stop'){split();if(state==='stop'&&i>=chunks.length)i=0}rep=0;say()};
+$('pause').onclick=()=>{
+ if(state==='play'){state='paused';clearTimeout(timer);speechSynthesis.cancel();$('pause').textContent='▶ Continuar'}
+ else if(state==='paused'||state==='wait'){$('pause').textContent='⏸ Pausa';say()}
+};
+$('rep').onclick=()=>{rep=0;say()};
+$('next').onclick=()=>{rep=0;i=Math.min(i+1,chunks.length);say()};
+$('prev').onclick=()=>{rep=0;i=Math.max(i-1,0);say()};
+$('stop').onclick=()=>{state='stop';clearTimeout(timer);speechSynthesis.cancel();i=0;rep=0;$('now').textContent='Detenido.';$('prog').textContent='Fragmento 0 / '+chunks.length};
+$('load').onclick=()=>{$('stop').click();split();show()};
+$('goto').onclick=()=>{split();i=Math.max(0,Math.min(chunks.length-1,parseInt($('gn').value)-1));rep=0;say()};
+$('rate').oninput=()=>$('rv').textContent=$('rate').value;
+$('hideTxt').onchange=show;
+document.addEventListener('keydown',e=>{
+ if(['TEXTAREA','INPUT','SELECT'].includes(e.target.tagName))return;
+ if(e.code==='Space'){e.preventDefault();$('pause').click()}
+ if(e.key==='ArrowRight')$('next').click();
+ if(e.key==='ArrowLeft')$('prev').click();
+ if(e.key.toLowerCase()==='r')$('rep').click();
+});
+split();show();
+</script></body></html>
